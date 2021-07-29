@@ -8,4 +8,6 @@ class Account(db.Model):
     fname = db.Column(db.String(20))
     lname = db.Column(db.String(20))
     email = db.Column(db.String(320))
-    password = db.Column(db.String(60))
+    password_hash = db.Column(db.String(60))
+    activated = db.Column(db.Boolean)
+    confirmation_code = db.Column(db.Integer)
