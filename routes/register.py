@@ -57,7 +57,7 @@ def register():
     db.session.commit()
 
     send_registration_email(acc)
-    return "<p>Success</p>"
+    return jsonify({"success": True}), 200
 
 
 def validate_registration_form(fname, lname, email, password):
@@ -93,7 +93,7 @@ def send_registration_email(acc: Account):
             name=acc.fname.upper() + " " + acc.lname.upper(),
             id=acc.id,
             code=acc.confirmation_code,
-            confirmation_url=os.environ.get("API_URL") + "/register",
+            confirmation_url=os.environ.get("SSLOGIN_API_URL") + "/register",
             year=date.today().year,
         ),
     )
