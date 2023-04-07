@@ -1,16 +1,24 @@
-from datetime import date
 from db_models.account import Account
 from database import db
 from flask import Blueprint, request, jsonify, render_template
 import assets.data_validation as dv
-from assets.data_validation import InvalidData
-import sendgrid
-from sendgrid.helpers.mail import *
 import bcrypt
-import os
-from random import randint
+from flask_cors import CORS
+from functions.auth import get_jwt
+from functions.register_functions import (
+    send_registration_email,
+    validate_registration_form,
+)
 
 register_routes = Blueprint("register_routes", __name__)
+CORS(
+    register_routes,
+    origins=[
+        "http://login.sanstate.lt",
+        "https://login.sanstate.lt",
+        "http://localhost:3000",
+    ],
+)
 
 
 @register_routes.route("/", methods=["POST"])
@@ -18,30 +26,49 @@ def register():
     if not request.is_json:
         return jsonify({"error": "Missing JSON body in request"}), 400
 
-    data = request.json
-    fname, lname, email, password = (
-        data["fname"],
-        data["lname"],
-        data["email"],
-        data["password"],
-    )
+    try:
+        data = request.json
+        fname, lname, email, password = (
+            data["fname"],
+            data["lname"],
+            data["email"],
+            data["password"],
+        )
+    except KeyError:
+        return jsonify({"error": "Visi laukeliai turi būti užpildyti"}), 400
 
     fname, lname = dv.fix_name_casing(fname), dv.fix_name_casing(lname)
 
     is_form_invalid = validate_registration_form(fname, lname, email, password)
     if is_form_invalid is not False:
-        return jsonify({"error": is_form_invalid.message}), 400
+        return (
+            jsonify({"error": is_form_invalid.message, "field": is_form_invalid.field}),
+            400,
+        )
 
     name_check = db.session.query(Account).filter_by(fname=fname, lname=lname).count()
     if name_check > 0:
         return (
-            jsonify({"error": "Paskyra su tokiu vardu bei pavarde jau egzistuoja"}),
+            jsonify(
+                {
+                    "error": "Paskyra su tokiu vardu bei pavarde jau egzistuoja",
+                    "field": "name",
+                }
+            ),
             400,
         )
 
     email_check = db.session.query(Account).filter_by(email=email).count()
     if email_check > 0:
-        return jsonify({"error": "Paskyra su tokiu el. paštu jau užregistruota"}), 400
+        return (
+            jsonify(
+                {
+                    "error": "Paskyra su tokiu el. paštu jau užregistruota",
+                    "field": "email",
+                }
+            ),
+            400,
+        )
 
     password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
 
@@ -57,48 +84,7 @@ def register():
     db.session.commit()
 
     send_registration_email(acc)
-    return jsonify({"success": True}), 200
-
-
-def validate_registration_form(fname, lname, email, password):
-
-    fname_check = dv.validate_name(fname)
-    lname_check = dv.validate_name(lname)
-    email_check = dv.validate_email(email)
-    password_check = dv.validate_password(password)
-
-    return next(
-        (
-            x
-            for x in [fname_check, lname_check, email_check, password_check]
-            if isinstance(x, InvalidData)
-        ),
-        False,
-    )
-
-
-def send_registration_email(acc: Account):
-
-    acc.confirmation_code = randint(1000, 9999)
-    db.session.commit()
-
-    sg = sendgrid.SendGridAPIClient(api_key=os.environ.get("SENDGRID_API_KEY"))
-    from_email = Email(email=os.environ.get("SYSTEM_EMAIL"), name="sanstate.lt Sistema")
-    to_email = To(acc.email)
-    subject = "Registracijos patvirtinimas"
-    content = Content(
-        "text/html",
-        render_template(
-            "register.html",
-            name=acc.fname.upper() + " " + acc.lname.upper(),
-            id=acc.id,
-            code=acc.confirmation_code,
-            confirmation_url=os.environ.get("SSLOGIN_API_URL") + "/register",
-            year=date.today().year,
-        ),
-    )
-    mail = Mail(from_email, to_email, subject, content)
-    response = sg.client.mail.send.post(request_body=mail.get())
+    return jsonify({"id": acc.id}), 200
 
 
 @register_routes.route("/<int:userid>/<int:code>", methods=["POST"])

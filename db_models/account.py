@@ -1,4 +1,5 @@
 from database import db
+from flask import jsonify
 
 
 class Account(db.Model):
