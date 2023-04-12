@@ -1,4 +1,4 @@
-# SanState (GTA V: AltV server) authentication backend. Depricated 2021
+# SanState (GTA V: altV server) authentication backend. Deprecated 2021
 
 README created for publication of this repository in 2023, 2y after its deprecation.
 
